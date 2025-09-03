@@ -79,6 +79,7 @@
 #define SCIP_DEFAULT_MAXSLACKVARCOEF       1e+9  /** the maximal objective coefficient of the slack variables in the subproblem */
 #define SCIP_DEFAULT_CHECKCONSCONVEXITY    TRUE  /** should the constraints of the subproblem be checked for convexity? */
 #define SCIP_DEFAULT_NLPITERLIMIT         10000  /** iteration limit for NLP solver */
+#define SCIP_DEFAULT_SOLVEWPRICING        FALSE  /** should the LP subproblems be solved by applying pricing? */
 
 #define BENDERS_MAXPSEUDOSOLS                 5  /** the maximum number of pseudo solutions checked before suggesting
                                                   *  merge candidates */
@@ -1332,6 +1333,11 @@ SCIP_RETCODE doBendersCreate(
    SCIP_CALL( SCIPsetAddIntParam(set, messagehdlr, blkmem, paramname,
          "iteration limit for NLP solver", &(*benders)->nlpparam.iterlimit, FALSE,
          SCIP_DEFAULT_NLPITERLIMIT, 0, INT_MAX, NULL, NULL) ); /*lint !e740*/
+
+   (void) SCIPsnprintf(paramname, SCIP_MAXSTRLEN, "benders/%s/solvewpricing", name);
+   SCIP_CALL( SCIPsetAddBoolParam(set, messagehdlr, blkmem, paramname,
+         "should the LP subproblems be solved by applying pricing?", &(*benders)->solvewpricing, FALSE,
+         SCIP_DEFAULT_SOLVEWPRICING, NULL, NULL) ); /*lint !e740*/
 
    return SCIP_OKAY;
 }
@@ -5168,7 +5174,14 @@ SCIP_RETCODE SCIPbendersSolveSubproblemLP(
       SCIP_Bool lperror;
       SCIP_Bool cutoff;
 
-      SCIP_CALL( SCIPsolveProbingLP(subproblem, -1, &lperror, &cutoff) );
+      if (benders->solvewpricing)
+      {
+         SCIP_CALL( SCIPsolveProbingLPWithPricing(subproblem, FALSE, FALSE, -1, &lperror, &cutoff) );
+      }
+      else
+      {
+         SCIP_CALL( SCIPsolveProbingLP(subproblem, -1, &lperror, &cutoff) );
+      }
 
       switch( SCIPgetLPSolstat(subproblem) )
       {
@@ -5525,7 +5538,14 @@ SCIP_RETCODE SCIPbendersComputeSubproblemLowerbound(
       }
       else
       {
-         SCIP_CALL( SCIPsolveProbingLP(subproblem, -1, &lperror, &cutoff) );
+         if (benders->solvewpricing)
+         {
+            SCIP_CALL( SCIPsolveProbingLPWithPricing(subproblem, FALSE, FALSE, -1, &lperror, &cutoff) );
+         }
+         else
+         {
+            SCIP_CALL( SCIPsolveProbingLP(subproblem, -1, &lperror, &cutoff) );
+         }
 
          if( SCIPgetLPSolstat(subproblem) == SCIP_LPSOLSTAT_INFEASIBLE )
             (*infeasible) = TRUE;
